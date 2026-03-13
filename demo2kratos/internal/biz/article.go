@@ -4,10 +4,11 @@ import (
 	"context"
 
 	"github.com/brianvoe/gofakeit/v7"
-	"github.com/go-kratos/kratos/v2/log"
 	"github.com/yylego/kratos-ebz/ebzkratos"
 	pb "github.com/yylego/kratos-examples/demo2kratos/api/article"
 	"github.com/yylego/kratos-examples/demo2kratos/internal/data"
+	"github.com/yylego/kratos-zap/zapkratos"
+	"github.com/yylego/zaplog"
 )
 
 type Article struct {
@@ -18,15 +19,19 @@ type Article struct {
 }
 
 type ArticleUsecase struct {
-	data *data.Data
-	log  *log.Helper
+	data   *data.Data
+	zapLog *zaplog.Zap
 }
 
-func NewArticleUsecase(data *data.Data, logger log.Logger) *ArticleUsecase {
-	return &ArticleUsecase{data: data, log: log.NewHelper(logger)}
+func NewArticleUsecase(data *data.Data, zapKratos *zapkratos.ZapKratos) *ArticleUsecase {
+	return &ArticleUsecase{
+		data:   data,
+		zapLog: zapKratos.SubZap(),
+	}
 }
 
 func (uc *ArticleUsecase) CreateArticle(ctx context.Context, a *Article) (*Article, *ebzkratos.Ebz) {
+	uc.zapLog.SUG.Infof("CreateArticle: %v", a)
 	var res Article
 	if err := gofakeit.Struct(&res); err != nil {
 		return nil, ebzkratos.New(pb.ErrorArticleCreateFailure("fake: %v", err))

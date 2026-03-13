@@ -5,23 +5,32 @@ import (
 
 	pb "github.com/yylego/kratos-examples/demo1kratos/api/student"
 	"github.com/yylego/kratos-examples/demo1kratos/internal/biz"
+	"github.com/yylego/kratos-zap/zapkratos"
+	"github.com/yylego/zaplog"
+	"go.uber.org/zap"
 )
 
 type StudentService struct {
 	pb.UnimplementedStudentServiceServer
 
-	uc *biz.StudentUsecase
+	uc     *biz.StudentUsecase
+	zapLog *zaplog.Zap
 }
 
-func NewStudentService(uc *biz.StudentUsecase) *StudentService {
-	return &StudentService{uc: uc}
+func NewStudentService(uc *biz.StudentUsecase, zapKratos *zapkratos.ZapKratos) *StudentService {
+	return &StudentService{
+		uc:     uc,
+		zapLog: zapKratos.SubZap(),
+	}
 }
 
 func (s *StudentService) CreateStudent(ctx context.Context, req *pb.CreateStudentRequest) (*pb.CreateStudentReply, error) {
+	s.zapLog.LOG.Info("receive-create-student-message")
 	v, ebz := s.uc.CreateStudent(ctx, nil)
 	if ebz != nil {
 		return nil, ebz.Erk
 	}
+	s.zapLog.LOG.Info("reply-create-student-message", zap.Int64("id", v.ID))
 	return &pb.CreateStudentReply{Student: &pb.StudentInfo{Id: v.ID, Name: v.Name, Age: v.Age, ClassName: v.ClassName}}, nil
 }
 

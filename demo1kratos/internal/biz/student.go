@@ -4,10 +4,11 @@ import (
 	"context"
 
 	"github.com/brianvoe/gofakeit/v7"
-	"github.com/go-kratos/kratos/v2/log"
 	"github.com/yylego/kratos-ebz/ebzkratos"
 	pb "github.com/yylego/kratos-examples/demo1kratos/api/student"
 	"github.com/yylego/kratos-examples/demo1kratos/internal/data"
+	"github.com/yylego/kratos-zap/zapkratos"
+	"github.com/yylego/zaplog"
 )
 
 type Student struct {
@@ -18,15 +19,19 @@ type Student struct {
 }
 
 type StudentUsecase struct {
-	data *data.Data
-	log  *log.Helper
+	data   *data.Data
+	zapLog *zaplog.Zap
 }
 
-func NewStudentUsecase(data *data.Data, logger log.Logger) *StudentUsecase {
-	return &StudentUsecase{data: data, log: log.NewHelper(logger)}
+func NewStudentUsecase(data *data.Data, zapKratos *zapkratos.ZapKratos) *StudentUsecase {
+	return &StudentUsecase{
+		data:   data,
+		zapLog: zapKratos.SubZap(),
+	}
 }
 
 func (uc *StudentUsecase) CreateStudent(ctx context.Context, s *Student) (*Student, *ebzkratos.Ebz) {
+	uc.zapLog.SUG.Infof("CreateStudent: %v", s)
 	var res Student
 	if err := gofakeit.Struct(&res); err != nil {
 		return nil, ebzkratos.New(pb.ErrorStudentCreateFailure("fake: %v", err))
