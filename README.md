@@ -104,14 +104,14 @@ The [changes/](./changes) section contains markdown files documenting code diffe
 
 - [changes/demo1.md](./changes/demo1.md) - Demo1 changes compared to source
 - [changes/demo2.md](./changes/demo2.md) - Demo2 changes compared to source
-- [changes/demos-toolchain-trees.md](./changes/demos-toolchain-trees.md) - Sibling projects and toolchain structures
+- [changes/aside.md](changes/aside.md) - Aside modules and sibling projects
 
 Tests auto-generate these files:
 
 ```bash
 go test -v -run TestGenerateDemo1Changes # Generate demo1.md
 go test -v -run TestGenerateDemo2Changes # Generate demo2.md
-go test -v -run TestGenerateToolchainTreesChanges # Generate demos-toolchain-trees.md
+go test -v -run TestGenerateAsideChanges # Generate aside.md
 ```
 
 **In source project:** Files show `✅ NO CHANGES`
@@ -120,8 +120,8 @@ go test -v -run TestGenerateToolchainTreesChanges # Generate demos-toolchain-tre
 
 ## Forks
 
-|    demo     |                       repo                        |
-| :---------: | :-----------------------------------------------: |
+|    demo     |                      repo                      |
+| :---------: | :--------------------------------------------: |
 |     ast     |     https://github.com/kratos-examples/ast     |
 | custom-auth | https://github.com/kratos-examples/custom-auth |
 | static-auth | https://github.com/kratos-examples/static-auth |

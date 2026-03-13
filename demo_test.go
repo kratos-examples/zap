@@ -73,13 +73,13 @@ func TestGenerateDemo2Changes(t *testing.T) {
 	comparekratos.GenerateChangesFile(examples.GetDemo2BasePath(), examples.GetDemo2ForkPath(), outputPath)
 }
 
-func TestGenerateToolchainTreesChanges(t *testing.T) {
+func TestGenerateAsideChanges(t *testing.T) {
 	root := runpath.PARENT.Path()
 	excludeNames := []string{
 		"changes",
 		filepath.Base(examples.GetDemo1ForkPath()),
 		filepath.Base(examples.GetDemo2ForkPath()),
 	}
-	outputPath := filepath.Join(root, "changes", "demos-toolchain-trees.md")
+	outputPath := filepath.Join(root, "changes", "aside.md")
 	comparekratos.GenerateTreeChanges(root, excludeNames, outputPath)
 }

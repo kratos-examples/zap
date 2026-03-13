@@ -104,14 +104,14 @@ make orz
 
 - [changes/demo1.md](./changes/demo1.md) - Demo1 相对源项目的变更
 - [changes/demo2.md](./changes/demo2.md) - Demo2 相对源项目的变更
-- [changes/demos-toolchain-trees.md](./changes/demos-toolchain-trees.md) - 兄弟项目和工具链结构
+- [changes/aside.md](changes/aside.md) - 附属模块和兄弟项目
 
 这些文件通过测试自动生成：
 
 ```bash
 go test -v -run TestGenerateDemo1Changes # 生成 demo1.md
 go test -v -run TestGenerateDemo2Changes # 生成 demo2.md
-go test -v -run TestGenerateToolchainTreesChanges # 生成 demos-toolchain-trees.md
+go test -v -run TestGenerateAsideChanges # 生成 aside.md
 ```
 
 **在源项目中：** 文件显示 `✅ NO CHANGES`
@@ -120,8 +120,8 @@ go test -v -run TestGenerateToolchainTreesChanges # 生成 demos-toolchain-trees
 
 ## Fork 项目列表
 
-|    演示     |                       仓库                        |
-| :---------: | :-----------------------------------------------: |
+|    演示     |                      仓库                      |
+| :---------: | :--------------------------------------------: |
 |     ast     |     https://github.com/kratos-examples/ast     |
 | custom-auth | https://github.com/kratos-examples/custom-auth |
 | static-auth | https://github.com/kratos-examples/static-auth |
