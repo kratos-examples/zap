@@ -2,17 +2,22 @@
 
 //go:generate go run -mod=mod github.com/google/wire/cmd/wire
 //go:build !wireinject
+// +build !wireinject
 
 package main
 
 import (
-	"github.com/go-kratos/kratos/v2"
+	"github.com/go-kratos/kratos/v3"
 	"github.com/yylego/kratos-examples/demo2kratos/internal/biz"
 	"github.com/yylego/kratos-examples/demo2kratos/internal/conf"
 	"github.com/yylego/kratos-examples/demo2kratos/internal/data"
 	"github.com/yylego/kratos-examples/demo2kratos/internal/server"
 	"github.com/yylego/kratos-examples/demo2kratos/internal/service"
 	"github.com/yylego/kratos-zap/zapkratos"
+)
+
+import (
+	_ "go.uber.org/automaxprocs"
 )
 
 // Injectors from wire.go:
@@ -23,7 +28,11 @@ func wireApp(confServer *conf.Server, confData *conf.Data, zapKratos *zapkratos.
 	if err != nil {
 		return nil, nil, err
 	}
-	articleUsecase := biz.NewArticleUsecase(dataData, zapKratos)
+	articleUsecase, err := biz.NewArticleUsecase(dataData, zapKratos)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
 	articleService := service.NewArticleService(articleUsecase, zapKratos)
 	grpcServer := server.NewGRPCServer(confServer, articleService, zapKratos)
 	httpServer := server.NewHTTPServer(confServer, articleService, zapKratos)

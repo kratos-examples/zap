@@ -5,7 +5,7 @@
 package main
 
 import (
-	"github.com/go-kratos/kratos/v2"
+	"github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 	"github.com/yylego/kratos-examples/demo1kratos/internal/biz"
 	"github.com/yylego/kratos-examples/demo1kratos/internal/conf"

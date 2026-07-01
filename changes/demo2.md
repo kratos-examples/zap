@@ -16,44 +16,42 @@ Code differences compared to source project.
 +#这样就能涵盖需要的
 +VERSION=$(shell git describe --tags --always --abbrev=40 --dirty=+code)
  
- ifeq ($(GOHOSTOS), windows)
- 	#the `find.exe` is different from `find` in bash/shell.
+ .PHONY: init
+ # init env
 ```
 
-## cmd/demo2kratos/main.go (+42 -14)
+## cmd/demo2kratos/main.go (+12 -18)
 
 ```diff
-@@ -3,18 +3,23 @@
+@@ -2,20 +2,20 @@
+ 
  import (
  	"flag"
+-	"log/slog"
  	"os"
-+	"path/filepath"
  
- 	"github.com/go-kratos/kratos/v2"
- 	"github.com/go-kratos/kratos/v2/config"
- 	"github.com/go-kratos/kratos/v2/config/file"
--	"github.com/go-kratos/kratos/v2/log"
--	"github.com/go-kratos/kratos/v2/middleware/tracing"
- 	"github.com/go-kratos/kratos/v2/transport/grpc"
- 	"github.com/go-kratos/kratos/v2/transport/http"
+-	"github.com/go-kratos/kratos/contrib/otel/v3/tracing"
+ 	"github.com/go-kratos/kratos/v3"
+ 	"github.com/go-kratos/kratos/v3/config"
+ 	"github.com/go-kratos/kratos/v3/config/file"
+-	"github.com/go-kratos/kratos/v3/log"
+ 	"github.com/go-kratos/kratos/v3/transport/grpc"
+ 	"github.com/go-kratos/kratos/v3/transport/http"
  	"github.com/yylego/done"
-+	"github.com/yylego/kratos-examples/demo2kratos"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/conf"
 +	"github.com/yylego/kratos-zap/zapkratos"
  	"github.com/yylego/must"
-+	"github.com/yylego/osexistpath/osmustexist"
  	"github.com/yylego/rese"
-+	"github.com/yylego/tern/zerotern"
 +	"github.com/yylego/zaplog"
 +	"go.uber.org/zap"
- )
  
- // go build -ldflags "-X main.Version=x.y.z"
-@@ -31,13 +36,13 @@
+ 	_ "go.uber.org/automaxprocs"
+ )
+@@ -34,13 +34,13 @@
  	flag.StringVar(&flagconf, "conf", "./configs", "config path, eg: -conf config.yaml")
  }
  
--func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
+-func newApp(logger *slog.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
 +func newApp(gs *grpc.Server, hs *http.Server, zapKratos *zapkratos.ZapKratos) *kratos.App {
  	return kratos.New(
  		kratos.ID(done.VCE(os.Hostname()).Omit()),
@@ -65,46 +63,23 @@ Code differences compared to source project.
  		kratos.Server(
  			gs,
  			hs,
-@@ -47,15 +52,38 @@
+@@ -50,18 +50,12 @@
  
  func main() {
  	flag.Parse()
--	logger := log.With(log.NewStdLogger(os.Stdout),
--		"ts", log.DefaultTimestamp,
--		"caller", log.DefaultCaller,
--		"service.id", kratos.ID(done.VCE(os.Hostname()).Omit()),
--		"service.name", Name,
--		"service.version", Version,
--		"trace.id", tracing.TraceID(),
--		"span.id", tracing.SpanID(),
+-	logger := log.NewLogger(
+-		slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+-			AddSource: true,
+-			Level:     slog.LevelInfo,
+-		}),
+-		log.WithExtractor(tracing.TraceAttrs),
+-	).With(
+-		slog.String("service.id", done.VCE(os.Hostname()).Omit()),
+-		slog.String("service.name", Name),
+-		slog.String("service.version", Version),
 -	)
+-	log.SetDefault(logger)
 +
-+	{
-+		rootBin := osmustexist.ROOT(filepath.Join(demo2kratos.SourceRoot(), "bin"))
-+		path1 := filepath.Join(rootBin, "log-newest.log")
-+		path2 := filepath.Join(rootBin, "log-oldest.log")
-+
-+		// Clean session log on startup
-+		// 启动时清空会话日志
-+		if osmustexist.IsFile(path1) {
-+			must.Done(os.Truncate(path1, 0))
-+		}
-+
-+		// Set default zap log to stdout and disk-file
-+		// 设置默认 zap 日志输出到标准输出和日志文件
-+		zaplog.SetLog(rese.P1(zaplog.NewZapLog(zaplog.NewConfig().
-+			AddOutputPaths(
-+				path1, path2, // Also log to file // 也输出到文件
-+			))).With(
-+			zap.String("service", zerotern.VF(Name, func() string {
-+				return filepath.Base(demo2kratos.SourceRoot())
-+			})),
-+			zap.String("version", zerotern.VV(Version, "v0.0.0")),
-+		))
-+	}
-+
-+	// Create zapkratos logger with default zaplog
-+	// 使用默认的 zaplog 创建 zapkratos 日志
 +	zapKratos := zapkratos.NewZapKratos(zaplog.LOGGER, zapkratos.NewOptions())
 +	zapLog := zapKratos.SubZap()
 +	zapLog.LOG.Info("application starting...")
@@ -113,7 +88,7 @@ Code differences compared to source project.
  	c := config.New(
  		config.WithSource(
  			file.NewSource(flagconf),
-@@ -68,7 +96,7 @@
+@@ -74,7 +68,7 @@
  	var cfg conf.Bootstrap
  	must.Done(c.Scan(&cfg))
  
@@ -124,17 +99,19 @@ Code differences compared to source project.
  	// start and wait for stop signal
 ```
 
-## cmd/demo2kratos/wire.go (+2 -2)
+## cmd/demo2kratos/wire.go (+2 -3)
 
 ```diff
-@@ -6,16 +6,16 @@
+@@ -5,8 +5,6 @@
+ package main
  
  import (
- 	"github.com/go-kratos/kratos/v2"
--	"github.com/go-kratos/kratos/v2/log"
+-	"log/slog"
+-
+ 	"github.com/go-kratos/kratos/v3"
  	"github.com/google/wire"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/biz"
- 	"github.com/yylego/kratos-examples/demo2kratos/internal/conf"
+@@ -14,9 +12,10 @@
  	"github.com/yylego/kratos-examples/demo2kratos/internal/data"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/server"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/service"
@@ -142,7 +119,7 @@ Code differences compared to source project.
  )
  
  // wireApp init kratos application.
--func wireApp(*conf.Server, *conf.Data, log.Logger) (*kratos.App, func(), error) {
+-func wireApp(*conf.Server, *conf.Data, *slog.Logger) (*kratos.App, func(), error) {
 +func wireApp(*conf.Server, *conf.Data, *zapkratos.ZapKratos) (*kratos.App, func(), error) {
  	panic(wire.Build(server.ProviderSet, data.ProviderSet, biz.ProviderSet, service.ProviderSet, newApp))
  }
@@ -151,35 +128,36 @@ Code differences compared to source project.
 ## cmd/demo2kratos/wire_gen.go (+8 -8)
 
 ```diff
-@@ -7,27 +7,27 @@
- 
- import (
- 	"github.com/go-kratos/kratos/v2"
--	"github.com/go-kratos/kratos/v2/log"
- 	"github.com/yylego/kratos-examples/demo2kratos/internal/biz"
- 	"github.com/yylego/kratos-examples/demo2kratos/internal/conf"
+@@ -13,7 +13,7 @@
  	"github.com/yylego/kratos-examples/demo2kratos/internal/data"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/server"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/service"
+-	"log/slog"
 +	"github.com/yylego/kratos-zap/zapkratos"
  )
  
+ import (
+@@ -23,20 +23,20 @@
  // Injectors from wire.go:
  
  // wireApp init kratos application.
--func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*kratos.App, func(), error) {
+-func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger) (*kratos.App, func(), error) {
 -	dataData, cleanup, err := data.NewData(confData, logger)
 +func wireApp(confServer *conf.Server, confData *conf.Data, zapKratos *zapkratos.ZapKratos) (*kratos.App, func(), error) {
 +	dataData, cleanup, err := data.NewData(confData, zapKratos)
  	if err != nil {
  		return nil, nil, err
  	}
--	articleUsecase := biz.NewArticleUsecase(dataData, logger)
+-	articleUsecase, err := biz.NewArticleUsecase(dataData, logger)
++	articleUsecase, err := biz.NewArticleUsecase(dataData, zapKratos)
+ 	if err != nil {
+ 		cleanup()
+ 		return nil, nil, err
+ 	}
 -	articleService := service.NewArticleService(articleUsecase)
 -	grpcServer := server.NewGRPCServer(confServer, articleService, logger)
 -	httpServer := server.NewHTTPServer(confServer, articleService, logger)
 -	app := newApp(logger, grpcServer, httpServer)
-+	articleUsecase := biz.NewArticleUsecase(dataData, zapKratos)
 +	articleService := service.NewArticleService(articleUsecase, zapKratos)
 +	grpcServer := server.NewGRPCServer(confServer, articleService, zapKratos)
 +	httpServer := server.NewHTTPServer(confServer, articleService, zapKratos)
@@ -189,98 +167,119 @@ Code differences compared to source project.
  	}, nil
 ```
 
-## internal/biz/article.go (+10 -5)
+## internal/biz/article.go (+8 -7)
 
 ```diff
-@@ -4,10 +4,11 @@
+@@ -3,12 +3,13 @@
+ import (
  	"context"
+ 	"errors"
+-	"log/slog"
  
- 	"github.com/brianvoe/gofakeit/v7"
--	"github.com/go-kratos/kratos/v2/log"
  	"github.com/yylego/kratos-ebz/ebzkratos"
  	pb "github.com/yylego/kratos-examples/demo2kratos/api/article"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/data"
 +	"github.com/yylego/kratos-zap/zapkratos"
+ 	"github.com/yylego/must"
 +	"github.com/yylego/zaplog"
+ 	"gorm.io/gorm"
+ 	"gorm.io/gorm/clause"
  )
- 
- type Article struct {
-@@ -18,15 +19,19 @@
- }
+@@ -29,18 +30,18 @@
+ func (Article) TableName() string { return "articles" }
  
  type ArticleUsecase struct {
 -	data *data.Data
--	log  *log.Helper
+-	slog *slog.Logger
 +	data   *data.Data
 +	zapLog *zaplog.Zap
  }
  
--func NewArticleUsecase(data *data.Data, logger log.Logger) *ArticleUsecase {
--	return &ArticleUsecase{data: data, log: log.NewHelper(logger)}
-+func NewArticleUsecase(data *data.Data, zapKratos *zapkratos.ZapKratos) *ArticleUsecase {
-+	return &ArticleUsecase{
-+		data:   data,
-+		zapLog: zapKratos.SubZap(),
-+	}
+-func NewArticleUsecase(data *data.Data, logger *slog.Logger) (*ArticleUsecase, error) {
++func NewArticleUsecase(data *data.Data, zapKratos *zapkratos.ZapKratos) (*ArticleUsecase, error) {
+ 	// Migrate the owned table plus the mirrored students table (needed in the
+ 	// existence check); both services share one database
+ 	// 建好本服务拥有的 articles 表，外加镜像的 students 表（供存在性校验用）
+ 	if err := data.DB().AutoMigrate(&Article{}, &Student{}); err != nil {
+ 		return nil, err
+ 	}
+-	return &ArticleUsecase{data: data, slog: logger}, nil
++	return &ArticleUsecase{data: data, zapLog: zapKratos.SubZap()}, nil
  }
  
  func (uc *ArticleUsecase) CreateArticle(ctx context.Context, a *Article) (*Article, *ebzkratos.Ebz) {
-+	uc.zapLog.SUG.Infof("CreateArticle: %v", a)
- 	var res Article
- 	if err := gofakeit.Struct(&res); err != nil {
- 		return nil, ebzkratos.New(pb.ErrorArticleCreateFailure("fake: %v", err))
+@@ -68,7 +69,7 @@
+ 		}
+ 		return nil, ebzkratos.New(pb.ErrorArticleCreateFailure("create article: %v", err))
+ 	}
+-	uc.slog.InfoContext(ctx, "created article", "id", res.ID, "student_id", res.StudentID)
++	uc.zapLog.SUG.Infow("created article", "id", res.ID, "student_id", res.StudentID)
+ 	return res, nil
+ }
+ 
+@@ -127,7 +128,7 @@
+ 	if del.RowsAffected == 0 {
+ 		return ebzkratos.New(pb.ErrorArticleNotFound("article %d not found", id))
+ 	}
+-	uc.slog.InfoContext(ctx, "deleted article", "id", id)
++	uc.zapLog.SUG.Infow("deleted article", "id", id)
+ 	return nil
+ }
+ 
 ```
 
-## internal/data/data.go (+5 -3)
+## internal/data/data.go (+5 -4)
 
 ```diff
-@@ -1,9 +1,9 @@
+@@ -1,10 +1,9 @@
  package data
  
  import (
--	"github.com/go-kratos/kratos/v2/log"
+-	"log/slog"
+-
  	"github.com/google/wire"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/conf"
 +	"github.com/yylego/kratos-zap/zapkratos"
  	"github.com/yylego/must"
  	"github.com/yylego/rese"
- 	"gorm.io/driver/sqlite"
-@@ -16,11 +16,13 @@
- 	db *gorm.DB
+ 	"gorm.io/driver/postgres"
+@@ -24,11 +23,13 @@
+ 	return d.db
  }
  
--func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
+-func NewData(c *conf.Data, logger *slog.Logger) (*Data, func(), error) {
 +func NewData(c *conf.Data, zapKratos *zapkratos.ZapKratos) (*Data, func(), error) {
 +	zapLog := zapKratos.SubZap()
 +	zapLog.SUG.Info("creating data resources")
- 	must.Same(c.Database.Driver, "sqlite3")
- 	db := rese.P1(gorm.Open(sqlite.Open(c.Database.Source), &gorm.Config{}))
+ 	must.Same(c.Database.Driver, "postgres")
+ 	db := rese.P1(gorm.Open(postgres.Open(c.Database.Source), &gorm.Config{}))
  	cleanup := func() {
--		log.NewHelper(logger).Info("closing the data resources")
+-		logger.Info("closing the data resources")
 +		zapLog.SUG.Info("closing the data resources")
  		_ = rese.P1(db.DB()).Close()
  	}
  	return &Data{db: db}, cleanup, nil
 ```
 
-## internal/server/grpc.go (+4 -2)
+## internal/server/grpc.go (+4 -3)
 
 ```diff
-@@ -1,18 +1,20 @@
+@@ -1,19 +1,20 @@
  package server
  
  import (
--	"github.com/go-kratos/kratos/v2/log"
-+	"github.com/go-kratos/kratos/v2/middleware/logging"
- 	"github.com/go-kratos/kratos/v2/middleware/recovery"
- 	"github.com/go-kratos/kratos/v2/transport/grpc"
+-	"log/slog"
+-
++	"github.com/go-kratos/kratos/v3/middleware/logging"
+ 	"github.com/go-kratos/kratos/v3/middleware/recovery"
+ 	"github.com/go-kratos/kratos/v3/transport/grpc"
  	pb "github.com/yylego/kratos-examples/demo2kratos/api/article"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/conf"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/service"
 +	"github.com/yylego/kratos-zap/zapkratos"
  )
  
--func NewGRPCServer(c *conf.Server, article *service.ArticleService, logger log.Logger) *grpc.Server {
+-func NewGRPCServer(c *conf.Server, article *service.ArticleService, logger *slog.Logger) *grpc.Server {
 +func NewGRPCServer(c *conf.Server, article *service.ArticleService, zapKratos *zapkratos.ZapKratos) *grpc.Server {
  	var opts = []grpc.ServerOption{
  		grpc.Middleware(
@@ -291,24 +290,25 @@ Code differences compared to source project.
  	if c.Grpc.Network != "" {
 ```
 
-## internal/server/http.go (+4 -2)
+## internal/server/http.go (+4 -3)
 
 ```diff
-@@ -1,18 +1,20 @@
+@@ -1,19 +1,20 @@
  package server
  
  import (
--	"github.com/go-kratos/kratos/v2/log"
-+	"github.com/go-kratos/kratos/v2/middleware/logging"
- 	"github.com/go-kratos/kratos/v2/middleware/recovery"
- 	"github.com/go-kratos/kratos/v2/transport/http"
+-	"log/slog"
+-
++	"github.com/go-kratos/kratos/v3/middleware/logging"
+ 	"github.com/go-kratos/kratos/v3/middleware/recovery"
+ 	"github.com/go-kratos/kratos/v3/transport/http"
  	pb "github.com/yylego/kratos-examples/demo2kratos/api/article"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/conf"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/service"
 +	"github.com/yylego/kratos-zap/zapkratos"
  )
  
--func NewHTTPServer(c *conf.Server, article *service.ArticleService, logger log.Logger) *http.Server {
+-func NewHTTPServer(c *conf.Server, article *service.ArticleService, logger *slog.Logger) *http.Server {
 +func NewHTTPServer(c *conf.Server, article *service.ArticleService, zapKratos *zapkratos.ZapKratos) *http.Server {
  	var opts = []http.ServerOption{
  		http.Middleware(
@@ -322,7 +322,7 @@ Code differences compared to source project.
 ## internal/service/article.go (+12 -3)
 
 ```diff
-@@ -5,23 +5,32 @@
+@@ -5,19 +5,27 @@
  
  	pb "github.com/yylego/kratos-examples/demo2kratos/api/article"
  	"github.com/yylego/kratos-examples/demo2kratos/internal/biz"
@@ -350,7 +350,10 @@ Code differences compared to source project.
  
  func (s *ArticleService) CreateArticle(ctx context.Context, req *pb.CreateArticleRequest) (*pb.CreateArticleReply, error) {
 +	s.zapLog.LOG.Info("receive-create-article-message")
- 	v, ebz := s.uc.CreateArticle(ctx, nil)
+ 	if req.Title == "" {
+ 		return nil, pb.ErrorBadParam("TITLE IS REQUIRED")
+ 	}
+@@ -32,6 +40,7 @@
  	if ebz != nil {
  		return nil, ebz.Erk
  	}
